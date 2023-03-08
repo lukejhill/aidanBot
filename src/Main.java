@@ -17,7 +17,7 @@ public class Main {
 
     // Super "secret" Twilio authenticators
     public static final String ACCOUNT_SID = "AC1d1b4e23ae72003dd66fab468b156aa8";
-    public static final String AUTH_TOKEN= "5db980bd16fedc399df1fd3f16a84d94";
+    public static final String AUTH_TOKEN= "fb1a3b070f97245e61e44109bc85be92";
 
     // Phone numbers to use
     public PhoneNumber luke = new PhoneNumber("+19403906397");
@@ -29,41 +29,53 @@ public class Main {
 
     Document doc = Jsoup.connect(url).ignoreContentType(true).get();
 
-    public List<String> seenUrls = new ArrayList<>();
+    public List<String> allTitles = new ArrayList<>();
+
+    public String newestPost = null;
 
     public Main() throws IOException {
-        String testDoc = doc.toString();
-        String[] split = testDoc.split("\\s+");
-        boolean lookingForURL = false;
+        // Login the Twilio account
+//        Twilio.init(ACCOUNT_SID, AUTH_TOKEN);
+//
+//        String testDoc = doc.toString();
+//        String[] split = testDoc.split("\"");
+//
+//        // Create the list of URLS containing x100v at the time the program starts
+//        // This ensures that when a new Title comes
+//        // through, we know we haven't seen it before, so it is a new post
+//        for(int i = 0; i < split.length; i++)
+//        {
+//            // Check for the keyword
+//            if(split[i].contains("x100v") || split[i].contains("X100V"))
+//            {
+//                if(split[i-2].contains("title")){
+//                    allTitles.add(split[i]);
+//                }
+//            }
+//        }
+    }
 
-        // Create the list of URLS containing x100v at the time the program starts
-        // This ensures that when a new URL comes through, we know we haven's seen it before and it is a new post
+    /**
+     * Find the most recent post mentioning 'x100v'
+     * @return
+     */
+    public String findNewestPost()
+    {
+        String testDoc = doc.toString();
+        String[] split = testDoc.split("\"");
+
         for(int i = 0; i < split.length; i++)
         {
             // Check for the keyword
             if(split[i].contains("x100v") || split[i].contains("X100V"))
             {
-                // If the word is detected, search for the URL pertaining to the word
-                lookingForURL = true;
-            }
-
-            // If we are searching for the URL
-            if(lookingForURL)
-            {
-                // Grab it and prepare to send the URL in message form
-                if(split[i].contains("url"))
-                {
-                    // If we haven't seen this exact url before, add it to our database of key URLs
-                    if(!seenUrls.contains(split[i + 1]))
-                    {
-                        seenUrls.add(split[i+1]);
-                    }
-                    // Whether we have seen this paticular URL before or not, we should stop looking for a url at this point
-                    lookingForURL = false;
+                if(split[i-2].contains("title")){
+                    return split[i];
                 }
-
             }
         }
+
+        return null;
     }
 
     /**
@@ -73,33 +85,34 @@ public class Main {
      */
     public boolean searchForCamera()
     {
+        // Pull the website data EACH time. Fixes meatball bug
+        try {
+            doc = Jsoup.connect(url).ignoreContentType(true).get();
+        } catch (IOException e) {
+            System.out.println("Failed to connect to Reddit");
+            throw new RuntimeException(e);
+        }
+
+        List<String> currentTitles = new ArrayList<>();
+
         String testDoc = doc.toString();
-        String[] split = testDoc.split("\\s+");
-        boolean lookingForURL = false;
+        String[] split = testDoc.split("\"");
 
         for(int i = 0; i < split.length; i++)
         {
             // Check for the keyword
             if(split[i].contains("x100v") || split[i].contains("X100V"))
             {
-                // If the word is detected, search for the URL pertaining to the word appearance
-                lookingForURL = true;
-            }
-
-            // If we are searching for the URL
-            if(lookingForURL)
-            {
-                // Grab it and prepare to send the URL in message form
-                if(split[i].contains("url")){
-                    if(!seenUrls.contains(split[i + 1])) {
-                        // JSON format will have structure "url: " "www.reddit.com..." so we need string after "url"
-                        seenUrls.add(split[i+1]);
-                        return true;
-                    }
-                    lookingForURL = false;
+                if(split[i-2].contains("title")){
+                    currentTitles.add(split[i]);
                 }
-
             }
+        }
+
+        // If the first elements in the lists are not the same, we have encountered a new title
+        if(!currentTitles.get(0).equals(allTitles.get(0))){
+            allTitles = currentTitles;
+            return true;
         }
 
         return false;
@@ -111,23 +124,30 @@ public class Main {
      * @throws InterruptedException
      */
     public void runBot() throws InterruptedException {
-        // Login the Twilio account
-        Twilio.init(ACCOUNT_SID, AUTH_TOKEN);
+        // Variable just used for testing purposes. Used to send periodic message that bot is still functioning
+        int counter = 0;
 
-        String init = "\n\nBot has been activated." +
+        String init = "\n\nBot has been reactivated." +
                 "\n\n" +
-                "I will be checking Reddit every 30 seconds for new posts on r/photoMarket for the term 'x100v'" +
-                ". I will only message you if I detect" +
-                " a new post containing that phrase. I do not have the capabilities to distinguish between" +
-                " buyers and sellers, I will just send you every post that mentions x100v.";
-        sendMessage(init);
+                "Meatballs should now be detected.";
+        // sendMessage(init);
 
         while(true) {
             // Wait for 30 seconds
             int waitForSeconds = 30;
             TimeUnit.SECONDS.sleep(waitForSeconds);
+            // testURLS();
+
+            counter++;
+            if(counter == 120){
+                System.out.println("Bot still running");
+                counter = 0;
+            }
+
             if(searchForCamera()) {
-                String message = "I have detected a new mention of x100v on r/PhotoMarket at " + seenUrls.get(seenUrls.size()-1);
+                System.out.println("New Post detected");
+                String message = "I have detected a new post with title: \n " +
+                        "" + allTitles.get(0);
                 sendMessage(message);
             }
 
@@ -136,7 +156,10 @@ public class Main {
 
     public static void main(String[] args) throws InterruptedException, IOException {
         Main main = new Main();
-        main.runBot();
+        System.out.println(main.findNewestPost());
+
+        //main.sendMessageToLuke(main.allTitles.get(0));
+        //main.runBot();
     }
 
     /**
@@ -144,11 +167,21 @@ public class Main {
      * @param message  The message to send
      */
     public void sendMessage(String message){
+        System.out.println("Sending Messages...");
+
         Message sendToLuke = Message.creator(luke, sending, message).create();
         System.out.println(sendToLuke.getSid());
 
-//        Message sendToAidan = Message.creator(aidan, sending, message).create();
-//        System.out.println(sendToAidan.getSid());
+        Message sendToAidan = Message.creator(aidan, sending, message).create();
+        System.out.println(sendToAidan.getSid());
     }
+
+    public void sendMessageToLuke(String message){
+        System.out.println("Sending Messages...");
+
+        Message sendToLuke = Message.creator(luke, sending, message).create();
+        System.out.println(sendToLuke.getSid());
+    }
+
 
 }
