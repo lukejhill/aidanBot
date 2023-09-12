@@ -1,0 +1,12 @@
+{
+    "name": "r/takeMe",
+    "version": "1.0.0",
+    "description": "Typing r/anything into the browser takes you straight to that subreddit",
+    "manifest_version": 3,
+    "author" : "Luke James Hill",
+    "action":{
+            "default_icon": {},
+            "default_title": "r/takeMe"
+        }
+}
+
